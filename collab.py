@@ -4,11 +4,12 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.model_selection import train_test_split
 from sklearn.metrics.pairwise import cosine_similarity
+import matplotlib.pyplot as plt
 
-def readData():
+def readData(chunksize=20000):
     # import the data (chunksize returns jsonReader for iteration)
-    businesses = pd.read_json("Data/yelp_academic_dataset_business.json", lines=True, orient='columns', chunksize=100000)
-    reviews = pd.read_json("Data/yelp_academic_dataset_review.json", lines=True, orient='columns', chunksize=100000)
+    businesses = pd.read_json("Data/yelp_academic_dataset_business.json", lines=True, orient='columns', chunksize=chunksize)
+    reviews = pd.read_json("Data/yelp_academic_dataset_review.json", lines=True, orient='columns', chunksize=chunksize)
     business_chunk = None
     review_chunk = None
     # read the data
@@ -71,23 +72,20 @@ def train_test_split_and_predict(data):
     """
     train_user_item_matrix, test_user_item_matrix = train_test_split(data, test_size=0.2)
 
-    similarity = calculate_similarity(train_user_item_matrix)
+    similarity = calculate_similarity(data)
     print("Calculated Similarity Matrix")
     true_ratings = []
     pred_ratings = []
     count = 0
     for user_id in test_user_item_matrix.index:
-        print(count)
-        
-        if user_id not in train_user_item_matrix.index:
-            continue
+        #print(count)
         count += 1
         true_rating = test_user_item_matrix.loc[user_id]
-        pred_rating = predict_ratings(similarity, train_user_item_matrix, user_id)
+        pred_rating = predict_ratings(similarity, data, user_id)
         true_ratings.extend(true_rating[true_rating.notnull()])
         pred_ratings.extend(pred_rating[true_rating.notnull()])
 
-        if count == 10:
+        if count == 10000:
             break
 
     return true_ratings, pred_ratings
@@ -190,17 +188,37 @@ def evaluate_performance(data):
 #     mae = mean_absolute_error(df_test["stars"], df_test["predictions"])
 #     return rmse, mae
 
-def main():
-    businesses, reviews = readData()
+def trainCollabFiltering(chunksize):
+    businesses, reviews = readData(chunksize)
     businesses = filterBusinesses(businesses)
     reviews = filterReviews(reviews)
     all_combined = combineDataframes(businesses, reviews)
     rating_crosstab = createPivotTable(all_combined)
-    rmse, mae = evaluate_performance(rating_crosstab)
-    print("User Based Collaborative Filtering - RMSE: ", rmse)
-    print("User Based Collaborative Filtering - MAE: ", mae)
+    return evaluate_performance(rating_crosstab)
+def main():
+    rmse = []
+    mae = []
+    for chunksize in range(1000, 20000,1000):
 
-    # ann_rmse, ann_mae = trainNN()
+        rmse_, mae_ = trainCollabFiltering(chunksize)
+        rmse.append(rmse_)
+        mae.append(mae_)        
+        print("Chunksize: {} MAE : {} RMSE : {}", chunksize, mae_, rmse_)
+    
+    plt.figure(figsize=(10, 6))  # Set the size of the plot
+    plt.plot(range(1000, 20000,1000), rmse, label='RMSE Loss', color='blue', marker='o')  # Plot the first loss array
+    plt.plot(range(1000, 20000,1000), mae, label='MAE Loss', color='red', marker='x')  # Plot the second loss array
+
+    plt.xlabel('ChunkSize')  # Label for the x-axis
+    plt.ylabel('Loss')  # Label for the y-axis
+    plt.title('Losses vs Chunksize')  # Title of the plot
+    plt.legend()  # Display the legend
+
+    plt.show() 
+
+    
+
+    # ann_rmse, ann_mae = trainNN(allcombined)
     # print("ANN - RMSE: ", ann_rmse)
     # print("ANN - MAE: ", ann_mae)
 
