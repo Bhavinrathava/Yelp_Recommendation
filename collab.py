@@ -5,6 +5,10 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.model_selection import train_test_split
 from sklearn.metrics.pairwise import cosine_similarity
 import matplotlib.pyplot as plt
+from keras.layers import Input, Embedding, Reshape, Dot, Add, Activation, Lambda
+from keras.models import Model
+from keras.optimizers import Adam
+from keras.regularizers import l2
 
 def readData(chunksize=20000):
     # import the data (chunksize returns jsonReader for iteration)
@@ -99,94 +103,94 @@ def evaluate_performance(data):
     mae = mean_absolute_error(true_ratings, pred_ratings)
     return rmse, mae
 
-# class EmbeddingLayer:
-#     def __init__(self, n_items, n_factors):
-#         self.n_items = n_items
-#         self.n_factors = n_factors
+class EmbeddingLayer:
+    def __init__(self, n_items, n_factors):
+        self.n_items = n_items
+        self.n_factors = n_factors
     
-#     def __call__(self, x):
-#         x = Embedding(self.n_items, self.n_factors, embeddings_initializer='he_normal', embeddings_regularizer=l2(1e-6))(x)
-#         x = Reshape((self.n_factors,))(x)
+    def __call__(self, x):
+        x = Embedding(self.n_items, self.n_factors, embeddings_initializer='he_normal', embeddings_regularizer=l2(1e-6))(x)
+        x = Reshape((self.n_factors,))(x)
         
-#         return x
+        return x
     
-# def Recommender(n_users, n_rests, n_factors, min_rating, max_rating):
-#     user = Input(shape=(1,))
-#     u = EmbeddingLayer(n_users, n_factors)(user)
-#     ub = EmbeddingLayer(n_users, 1)(user)
+def Recommender(n_users, n_rests, n_factors, min_rating, max_rating):
+    user = Input(shape=(1,))
+    u = EmbeddingLayer(n_users, n_factors)(user)
+    ub = EmbeddingLayer(n_users, 1)(user)
     
-#     restaurant = Input(shape=(1,))
-#     m = EmbeddingLayer(n_rests, n_factors)(restaurant)
-#     mb = EmbeddingLayer(n_rests, 1)(restaurant)   
+    restaurant = Input(shape=(1,))
+    m = EmbeddingLayer(n_rests, n_factors)(restaurant)
+    mb = EmbeddingLayer(n_rests, 1)(restaurant)   
     
-#     x = Dot(axes=1)([u, m])
-#     x = Add()([x, ub, mb])
-#     x = Activation('sigmoid')(x)
-#     x = Lambda(lambda x: x * (max_rating - min_rating) + min_rating)(x)  
+    x = Dot(axes=1)([u, m])
+    x = Add()([x, ub, mb])
+    x = Activation('sigmoid')(x)
+    x = Lambda(lambda x: x * (max_rating - min_rating) + min_rating)(x)  
     
-#     model = Model(inputs=[user, restaurant], outputs=x)
-#     opt = Adam(lr=0.001)
-#     model.compile(loss='mean_squared_error', optimizer=opt)  
+    model = Model(inputs=[user, restaurant], outputs=x)
+    opt = Adam(lr=0.001)
+    model.compile(loss='mean_squared_error', optimizer=opt)  
     
-#     return model
+    return model
 
-# def encodingData(dataset):
-#     user_encode = LabelEncoder()
-#     dataset['user'] = user_encode.fit_transform(dataset['user_id'].values)
-#     n_users = dataset['user'].nunique()
+def encodingData(dataset):
+    user_encode = LabelEncoder()
+    dataset['user'] = user_encode.fit_transform(dataset['user_id'].values)
+    n_users = dataset['user'].nunique()
 
-#     item_encode = LabelEncoder()
+    item_encode = LabelEncoder()
 
-#     dataset['business'] = item_encode.fit_transform(dataset['business_id'].values)
-#     n_rests = dataset['business'].nunique()
+    dataset['business'] = item_encode.fit_transform(dataset['business_id'].values)
+    n_rests = dataset['business'].nunique()
 
-#     dataset['stars'] = dataset['stars'].values#.astype(np.float32)
+    dataset['stars'] = dataset['stars'].values#.astype(np.float32)
 
-#     min_rating = min(dataset['stars'])
-#     max_rating = max(dataset['stars'])
+    min_rating = min(dataset['stars'])
+    max_rating = max(dataset['stars'])
 
-#     print(n_users, n_rests, min_rating, max_rating)
+    print(n_users, n_rests, min_rating, max_rating)
 
-#     return dataset
+    return dataset
 
-# def trainNN(combinedDataset):
-#     encodedDataset = encodingData(combinedDataset)
+def trainNN(combinedDataset):
+    encodedDataset = encodingData(combinedDataset)
 
-#     X = encodedDataset[['user', 'business']].values
-#     y = encodedDataset['stars'].values
+    X = encodedDataset[['user', 'business']].values
+    y = encodedDataset['stars'].values
 
-#     X_train_keras, X_test_keras, y_train_keras, y_test_keras = train_test_split(X, y, test_size=0.2, random_state=42)
-#     X_train_keras.shape, X_test_keras.shape, y_train_keras.shape, y_test_keras.shape
+    X_train_keras, X_test_keras, y_train_keras, y_test_keras = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train_keras.shape, X_test_keras.shape, y_train_keras.shape, y_test_keras.shape
 
     
-#     X_train_array = [X_train_keras[:, 0], X_train_keras[:, 1]]
-#     X_test_array = [X_test_keras[:, 0], X_test_keras[:, 1]]
+    X_train_array = [X_train_keras[:, 0], X_train_keras[:, 1]]
+    X_test_array = [X_test_keras[:, 0], X_test_keras[:, 1]]
 
 
-#     n_factors = 50
-#     n_users = combinedDataset['user'].nunique()
-#     n_rests = combinedDataset['business'].nunique()
-#     min_rating = min(combinedDataset['stars'])
-#     max_rating = max(combinedDataset['stars'])
+    n_factors = 8
+    n_users = combinedDataset['user'].nunique()
+    n_rests = combinedDataset['business'].nunique()
+    min_rating = min(combinedDataset['stars'])
+    max_rating = max(combinedDataset['stars'])
     
-#     keras_model = Recommender(n_users, n_rests, n_factors, min_rating, max_rating)
-#     keras_model.summary()
+    keras_model = Recommender(n_users, n_rests, n_factors, min_rating, max_rating)
+    keras_model.summary()
 
-#     keras_model.fit(x=X_train_array, y=y_train_keras, batch_size=64,\
-#                           epochs=5, verbose=1, validation_data=(X_test_array, y_test_keras))
-#     predictions = keras_model.predict(X_test_array)
+    keras_model.fit(x=X_train_array, y=y_train_keras, batch_size=64,\
+                          epochs=10, verbose=1, validation_data=(X_test_array, y_test_keras))
+    predictions = keras_model.predict(X_test_array)
 
-#     # create the df_test table with prediction results
-#     df_test = pd.DataFrame(X_test_keras[:,0])
-#     df_test.rename(columns={0: "user"}, inplace=True)
-#     df_test['business'] = X_test_keras[:,1]
-#     df_test['stars'] = y_test_keras
-#     df_test["predictions"] = predictions
-#     df_test.head()
+    # create the df_test table with prediction results
+    df_test = pd.DataFrame(X_test_keras[:,0])
+    df_test.rename(columns={0: "user"}, inplace=True)
+    df_test['business'] = X_test_keras[:,1]
+    df_test['stars'] = y_test_keras
+    df_test["predictions"] = predictions
+    df_test.head()
 
-#     rmse = np.sqrt(mean_squared_error(df_test["stars"], df_test["predictions"]))
-#     mae = mean_absolute_error(df_test["stars"], df_test["predictions"])
-#     return rmse, mae
+    rmse = np.sqrt(mean_squared_error(df_test["stars"], df_test["predictions"]))
+    mae = mean_absolute_error(df_test["stars"], df_test["predictions"])
+    return rmse, mae
 
 def trainCollabFiltering(chunksize):
     businesses, reviews = readData(chunksize)
@@ -198,6 +202,7 @@ def trainCollabFiltering(chunksize):
 def main():
     rmse = []
     mae = []
+
     for chunksize in range(1000, 20000,1000):
 
         rmse_, mae_ = trainCollabFiltering(chunksize)
@@ -217,10 +222,14 @@ def main():
     plt.show() 
 
     
+    businesses, reviews = readData(50000)
+    businesses = filterBusinesses(businesses)
+    reviews = filterReviews(reviews)
+    all_combined = combineDataframes(businesses, reviews)
+    ann_rmse, ann_mae = trainNN(all_combined)
 
-    # ann_rmse, ann_mae = trainNN(allcombined)
-    # print("ANN - RMSE: ", ann_rmse)
-    # print("ANN - MAE: ", ann_mae)
+    print("ANN - RMSE: ", ann_rmse)
+    print("ANN - MAE: ", ann_mae)
 
 if __name__ == "__main__":
     main()
