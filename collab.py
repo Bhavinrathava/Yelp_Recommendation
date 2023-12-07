@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import random
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.model_selection import train_test_split
@@ -55,26 +56,60 @@ def calculate_similarity(user_item_matrix):
 
 # Prediction of Ratings 
 
-def predict_ratings(similarity, user_item_matrix, user_id):
+def predict_ratings(similarity, userItemMatrix, userID):
     """
     Predict ratings for all items for a given user
     """
-    total_similarity = similarity[user_id].sum()
-    weighted_sum = np.dot(similarity[user_id], user_item_matrix.fillna(0))
+    sumOfSimilarity = similarity[userID].sum()
+    weightedRatings = np.dot(similarity[userID], userItemMatrix.fillna(0))
 
     # Avoid division by zero
-    if total_similarity == 0:
-        total_similarity = 1
+    if sumOfSimilarity == 0:
+        sumOfSimilarity = 1
 
-    predictions = weighted_sum / total_similarity
-    predictions = pd.Series(predictions, index=user_item_matrix.columns)
+    predictions = weightedRatings / sumOfSimilarity
+    predictions = pd.Series(predictions, index=userItemMatrix.columns)
     return predictions
+
+def consimeSimilarity(vectorA, vectorB):
+    """ Cosine Similarity Between 2 Vectors : (A.B) / (||A|| * ||B||)"""
+    # Taking the dot Product Between the given Vectors
+    dotProduct = np.dot(vectorA, vectorB)
+
+    # Calculating the Norm of Vector A and Vector B
+    normOfA = np.linalg.norm(vectorA)
+    normOfB = np.linalg.norm(vectorB)
+
+    # Calculating the Cosine Similarity
+    return dotProduct / (normOfA * normOfB)
+
+def compute_cosine_similarity_matrix(dataset):
+    # Taking the shape of the dataset
+    numUsers = dataset.shape[0]
+
+    # Creating a matrix of zeros
+    similarityMatrix = np.zeros((numUsers, numUsers))
+
+    # Calculating the similarity between users
+    for i in range(numUsers):
+        for j in range(i, numUsers):
+            similarity = consimeSimilarity(dataset.iloc[i], dataset.iloc[j])
+            similarityMatrix[i, j] = similarity
+            similarityMatrix[j, i] = similarity
+
+    # Filling the diagonal with zeros
+    for i in range(numUsers):
+        similarityMatrix[i, i] = 0
+
+    # Converting the matrix to a DataFrame
+    similarityMatrix = pd.DataFrame(similarityMatrix, index=dataset.index, columns=dataset.index)
+    return similarityMatrix
 
 def train_test_split_and_predict(data):
     """
     Split the data into train and test sets, predict ratings, and return the true and predicted ratings
     """
-    train_user_item_matrix, test_user_item_matrix = train_test_split(data, test_size=0.2)
+    train_user_item_matrix, test_user_item_matrix = train_test_split(data, test_size=0.8)
 
     similarity = calculate_similarity(data)
     print("Calculated Similarity Matrix")
@@ -89,8 +124,26 @@ def train_test_split_and_predict(data):
         true_ratings.extend(true_rating[true_rating.notnull()])
         pred_ratings.extend(pred_rating[true_rating.notnull()])
 
-        if count == 10000:
-            break
+        # find top k restaurants for user_id
+        #k = 3
+        #top_k_restaurants = pred_rating.sort_values(ascending=False).index.values[:k]
+        # print the names of top k restaurants
+        #print(top_k_restaurants)
+        random_user = random.sample(list(test_user_item_matrix.index), 1)
+        if user_id == random_user[0]:
+            print("Random User: ", user_id)
+            # Recommend top 3 restaurants to the random user
+            top_k_restaurants = pred_rating.sort_values(ascending=False).index.values[:3]
+
+            # print predicted rating for top 3 restaurants
+            print("Predicted Ratings: ", pred_rating[top_k_restaurants])
+            print("Recommended Restaurants: ", top_k_restaurants)
+
+            # Actual top 3 restaturants rated by the random user
+            actual_top_k_restaurants = true_rating.sort_values(ascending=False).index.values[:3]
+            print("Actual Ratings: ", true_rating[actual_top_k_restaurants])
+            print("Actual Restaurants: ", actual_top_k_restaurants)
+
 
     return true_ratings, pred_ratings
 
@@ -99,6 +152,15 @@ def evaluate_performance(data):
     Evaluate the performance of the collaborative filtering algorithm
     """
     true_ratings, pred_ratings = train_test_split_and_predict(data)
+
+    # # Create a mask for non-zero true values
+    # non_zero_mask = true_ratings != 0
+    # print("Non Zero Mask Created")
+    # print(non_zero_mask)
+    # # Filter both arrays using the mask
+    # true_ratings = true_ratings[non_zero_mask]
+    # pred_ratings = pred_ratings[non_zero_mask]
+
     rmse = np.sqrt(mean_squared_error(true_ratings, pred_ratings))
     mae = mean_absolute_error(true_ratings, pred_ratings)
     return rmse, mae
@@ -196,28 +258,30 @@ def trainCollabFiltering(chunksize):
     businesses, reviews = readData(chunksize)
     businesses = filterBusinesses(businesses)
     reviews = filterReviews(reviews)
-    all_combined = combineDataframes(businesses, reviews)
-    rating_crosstab = createPivotTable(all_combined)
-    return evaluate_performance(rating_crosstab)
+    combinedDataset = combineDataframes(businesses, reviews)
+    userItemMatrix = createPivotTable(combinedDataset)
+    return evaluate_performance(userItemMatrix)
+
+
 def main():
     rmse = []
     mae = []
-
-    for chunksize in range(1000, 20000,1000):
+    chuckrange = range(1000, 15000,1000)
+    for chunksize in chuckrange:
 
         rmse_, mae_ = trainCollabFiltering(chunksize)
         rmse.append(rmse_)
         mae.append(mae_)        
-        print("Chunksize: {} MAE : {} RMSE : {}", chunksize, mae_, rmse_)
+        print(f"Chunksize: {chunksize} MAE : {mae_} RMSE : {rmse_}")
     
-    plt.figure(figsize=(10, 6))  # Set the size of the plot
-    plt.plot(range(1000, 20000,1000), rmse, label='RMSE Loss', color='blue', marker='o')  # Plot the first loss array
-    plt.plot(range(1000, 20000,1000), mae, label='MAE Loss', color='red', marker='x')  # Plot the second loss array
+    plt.figure(figsize=(10, 6)) 
+    plt.plot(chuckrange, rmse, label='RMSE Loss', color='blue', marker='o')  
+    plt.plot(chuckrange, mae, label='MAE Loss', color='red', marker='x')  
 
-    plt.xlabel('ChunkSize')  # Label for the x-axis
-    plt.ylabel('Loss')  # Label for the y-axis
-    plt.title('Losses vs Chunksize')  # Title of the plot
-    plt.legend()  # Display the legend
+    plt.xlabel('ChunkSize') 
+    plt.ylabel('Loss') 
+    plt.title('Losses vs Chunksize')  
+    plt.legend() 
 
     plt.show() 
 
